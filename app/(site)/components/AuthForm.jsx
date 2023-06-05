@@ -1,21 +1,33 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import Input from '@/app/components/inputs/Input';
-import Button from '@/app/components/Button';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+
 import AuthSocialButton from './AuthSocialButton';
-import { BsGithub, BsGoogle } from 'react-icons/bs';
+
+import Button from '@/app/components/Button';
+import Input from '@/app/components/inputs/Input';
 import HorizontalSeparator from '@/app/components/HorizontalSeparator';
 
-function AuthForm(props) {
+import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
+import { signIn, useSession } from 'next-auth/react';
+
+import { toast } from 'react-hot-toast';
+import { BsGithub, BsGoogle } from 'react-icons/bs';
+
+function AuthForm() {
 	const [variant, setVariant] = useState('LOGIN');
 	const [isLoading, setIsLoading] = useState(false);
 
-	const toggleVariant = useCallback(() => {
-		const value = variant === 'LOGIN' ? 'REGISTER' : 'LOGIN';
-		setVariant(value);
-	}, [variant]);
+	const session = useSession();
+	const router = useRouter();
+
+	useEffect(() => {
+		if (session?.status === 'authenticated') {
+			router.push('/users');
+		}
+	}, [session?.status, router]);
 
 	const {
 		register,
@@ -33,18 +45,39 @@ function AuthForm(props) {
 		setIsLoading(true);
 
 		if (variant === 'REGISTER') {
-			/* Axios Register */
-		}
-
-		if (variant === 'LOGIN') {
-			/* NextAuth Sign In */
+			axios
+				.post('/api/register', data)
+				.then(() => signIn('credentials', data))
+				.catch(({ response: { data } }) => toast.error(data))
+				.finally(() => setIsLoading(false));
+		} else if (variant === 'LOGIN') {
+			signIn('credentials', {
+				...data,
+				redirect: false,
+			})
+				.then(callback => {
+					if (callback?.error) {
+						toast.error(callback.error);
+					} else if (callback?.ok) {
+						toast.success('Logged in!');
+					}
+				})
+				.finally(() => setIsLoading(false));
 		}
 	};
 
 	const socialAction = action => {
 		setIsLoading(true);
-
-		/* NextAuth Socail Sign In */
+		signIn(action, { redirect: false })
+			.then(callback => {
+				console.log(callback, '???');
+				if (callback?.error) {
+					toast.error(callback.error);
+				} else if (callback?.ok) {
+					toast.success('Logged in!');
+				}
+			})
+			.finally(() => setIsLoading(false));
 	};
 
 	return (
@@ -127,20 +160,31 @@ function AuthForm(props) {
                         text-gray-500
                     '
 				>
-					<p>
-						{variant === 'LOGIN'
-							? 'New to Messenger?'
-							: 'Already have an acount?'}
-					</p>
-					<p onClick={toggleVariant} className='underline cursor-pointer'>
-						{variant === 'LOGIN' ? 'Create an account' : 'Login'}
-					</p>
+					{variant === 'LOGIN' ? (
+						<>
+							<p>New to Messenger?</p>
+							<p
+								onClick={() => setVariant('REGISTER')}
+								className='underline cursor-pointer'
+							>
+								Create an account
+							</p>
+						</>
+					) : (
+						<>
+							<p>Already have an acount?</p>
+							<p
+								onClick={() => setVariant('LOGIN')}
+								className='underline cursor-pointer'
+							>
+								Login
+							</p>
+						</>
+					)}
 				</div>
 			</div>
 		</div>
 	);
 }
-
-AuthForm.propTypes = {};
 
 export default AuthForm;
